@@ -13,6 +13,7 @@ impl<'a> Kernel<'a> {
             start_barrier,
         }
     }
+
     pub fn run(&mut self) {
         let cpuid = x86::cpuid::CpuId::new();
         let num_cores: u16 = cpuid
