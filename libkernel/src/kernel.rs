@@ -5,8 +5,6 @@ pub struct Kernel<'a> {
     bootstrap_processor_id: u32,
     start_barrier: &'a Once<Barrier>,
     quiet: bool,
-    #[cfg(test)]
-    bootstrap_initialized: bool,
 }
 
 impl<'a> Kernel<'a> {
@@ -15,8 +13,6 @@ impl<'a> Kernel<'a> {
             bootstrap_processor_id,
             start_barrier,
             quiet: false,
-            #[cfg(test)]
-            bootstrap_initialized: false,
         }
     }
 
@@ -31,7 +27,7 @@ impl<'a> Kernel<'a> {
         local_apic == self.bootstrap_processor_id
     }
 
-    pub fn run(&mut self) {
+    pub fn run<F: FnOnce()>(&mut self, bootstrap_init: F) {
         let cpuid = x86::cpuid::CpuId::new();
         let num_cores: u16 = crate::platform::num_cores();
         let start_rendezvous = self
@@ -43,10 +39,7 @@ impl<'a> Kernel<'a> {
         if local_apic == self.bootstrap_processor_id {
             port.init();
             // Bootstrap CPU initialization
-            #[cfg(test)]
-            {
-                self.bootstrap_initialized = true;
-            }
+            bootstrap_init();
         }
         start_rendezvous.wait();
 
@@ -67,11 +60,14 @@ mod tests {
         static barrier: Once<Barrier> = Once::new();
         let mut kernel = Kernel::new(0, &barrier);
         kernel.set_quiet(true);
-        kernel.run();
+        let mut initialized = false;
+        kernel.run(|| {
+            initialized = true;
+        });
         if kernel.is_bootstrap_core() {
-            assert!(kernel.bootstrap_initialized)
+            assert!(initialized)
         } else {
-            assert!(!kernel.bootstrap_initialized);
+            assert!(!initialized);
         }
     }
 }
