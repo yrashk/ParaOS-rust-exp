@@ -7,7 +7,7 @@
 
 mod kernel;
 pub mod panic;
-mod serial;
+pub mod serial;
 
 mod platform;
 #[cfg(test)]

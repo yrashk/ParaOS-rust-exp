@@ -8,7 +8,7 @@ pub struct Port {
 }
 
 impl Port {
-    const fn new(port: u16) -> Self {
+    pub(crate) const fn new(port: u16) -> Self {
         Self {
             port,
             mutex: Mutex::new(()),
@@ -20,9 +20,9 @@ impl Port {
     }
 }
 
-pub(crate) struct Serial(pub &'static Port);
+pub struct Serial(pub &'static Port);
 
-pub(crate) static COM1: Port = Port::new(0x3f8u16);
+pub static COM1: Port = Port::new(0x3f8u16);
 
 impl Serial {
     pub fn new(port: &'static Port) -> Self {
