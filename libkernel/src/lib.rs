@@ -5,7 +5,7 @@
 #![test_runner(crate::test::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-mod kernel;
+pub mod kernel;
 pub mod panic;
 pub mod serial;
 

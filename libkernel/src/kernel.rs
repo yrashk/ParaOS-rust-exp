@@ -1,14 +1,37 @@
 use crate::serial;
+use core::ops::{Deref, DerefMut};
 use spin::{Barrier, Once};
+
+pub struct StartBarrier(Once<Barrier>);
+
+impl StartBarrier {
+    pub const fn new() -> Self {
+        Self(Once::new())
+    }
+}
+
+impl Deref for StartBarrier {
+    type Target = Once<Barrier>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for StartBarrier {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 pub struct Kernel<'a> {
     bootstrap_processor_id: u32,
-    start_barrier: &'a Once<Barrier>,
+    start_barrier: &'a StartBarrier,
     quiet: bool,
 }
 
 impl<'a> Kernel<'a> {
-    pub fn new(bootstrap_processor_id: u32, start_barrier: &'a Once<Barrier>) -> Self {
+    pub fn new(bootstrap_processor_id: u32, start_barrier: &'a StartBarrier) -> Self {
         Self {
             bootstrap_processor_id,
             start_barrier,
@@ -57,7 +80,7 @@ mod tests {
     fn bootstrap_init_only() {
         use super::*;
         #[allow(non_upper_case_globals)]
-        static barrier: Once<Barrier> = Once::new();
+        static barrier: StartBarrier = StartBarrier::new();
         let mut kernel = Kernel::new(0, &barrier);
         kernel.set_quiet(true);
         let mut initialized = false;

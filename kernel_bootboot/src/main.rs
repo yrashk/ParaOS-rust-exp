@@ -13,16 +13,15 @@ extern "C" {
     static BOOTBOOT: bootboot::Bootboot;
 }
 
-use spin::{Barrier, Once};
-
 use buddy_system_allocator::LockedHeap;
+use paraos_libkernel::kernel::StartBarrier;
 
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::empty();
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    static START: Once<Barrier> = Once::new();
+    static START: StartBarrier = paraos_libkernel::kernel::StartBarrier::new();
     paraos_libkernel::Kernel::new(unsafe { BOOTBOOT.bspid as u32 }, &START).run(|| unsafe {
         for entry in &BOOTBOOT.memory_mappings()[1..] {
             if entry.is_free() && entry.addr() != 0x0 {
