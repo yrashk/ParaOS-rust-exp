@@ -1,0 +1,35 @@
+[config]
+default_to_workspace = false
+
+[tasks.install-rust-src]
+install_crate = { rustup_component_name = "rust-src" }
+
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--", "--emit=files"]
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--target", "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/.cargo/targets/x86_64-paraos.json"]
+dependencies = ["format", "install-rust-src"]
+
+[tasks.qemu]
+script_runner = "@shell"
+script = '''
+qemu-system-x86_64 \
+    -drive if=pflash,format=raw,readonly=on,file=${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/support/OVMF.fd \
+    -drive if=pflash,format=raw,readonly=off,file=${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/support/OVMF_VARS.fd \
+    -drive format=raw,file=fat:rw:${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64-paraos/disk \
+    -cpu max -serial mon:stdio -machine q35 -smp 4 -s
+'''
+dependencies = ["bootable"]
+
+[tasks.bootable]
+dependencies = ["build"]
+script = '''
+mkdir -p ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64-paraos/disk/bootboot
+cp -f ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/support/bootboot.efi ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64-paraos/disk
+echo "BOOTBOOT.EFI" > ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64-paraos/disk/startup.nsh
+cp ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64-paraos/debug/paraos_kernel_bootboot ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64-paraos/disk/bootboot/x86_64
+'''
