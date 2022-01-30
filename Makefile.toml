@@ -33,3 +33,37 @@ cp -f ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/support/bootboot.efi
 echo "BOOTBOOT.EFI" > ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64-paraos/disk/startup.nsh
 cp ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64-paraos/debug/paraos_kernel_bootboot ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/x86_64-paraos/disk/bootboot/x86_64
 '''
+
+[tasks.bootable-tests]
+dependencies = ["build-tests"]
+script = '''
+mkdir -p ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test/x86_64-paraos/disk/bootboot
+cp -f ${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/support/bootboot.efi ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test/x86_64-paraos/disk
+echo "BOOTBOOT.EFI" > ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test/x86_64-paraos/disk/startup.nsh
+for file in ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test/x86_64-paraos/debug/deps/paraos_libkernel-*; do
+  if [ -x ${file} ]; then
+    cp ${file} ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test/x86_64-paraos/disk/bootboot/x86_64
+  fi
+done
+'''
+
+[tasks.build-tests]
+command = "cargo"
+env = { "RUSTFLAGS" = "-C link-arg=-Tlibkernel/linker.ld" }
+args = ["test", "--target-dir", "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test", "--manifest-path", "libkernel/Cargo.toml", "--no-run", "--target", "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/.cargo/targets/x86_64-paraos.json"]
+dependencies = ["format", "install-rust-src", "clean-test-target"]
+
+[tasks.qemu-test]
+dependencies = ["bootable-tests"]
+script_runner = "@duckscript"
+script = '''
+exit_code = exec --get-exit-code qemu-system-x86_64 -drive if=pflash,format=raw,readonly=on,file=${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/support/OVMF.fd -drive if=pflash,format=raw,readonly=off,file=${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/support/OVMF_VARS.fd -drive format=raw,file=fat:rw:${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test/x86_64-paraos/disk -cpu max -serial mon:stdio -machine q35 -smp 2 -device isa-debug-exit -s
+error = eq ${exit_code} 3
+if ${error}
+  echo "Test(s) failed"
+  exit 1
+end
+'''
+
+[tasks.clean-test-target]
+script = "rm -rf ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test/x86_64-paraos/debug/deps/paraos_libkernel-*"

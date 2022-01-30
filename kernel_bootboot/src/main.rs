@@ -30,10 +30,10 @@ extern "C" {
 }
 
 use spin::{Barrier, Once};
-static START: Once<Barrier> = Once::new();
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    static START: Once<Barrier> = Once::new();
     paraos_libkernel::Kernel::new(unsafe { BOOTBOOT.bspid as u32 }, &START).run();
     loop {}
 }
