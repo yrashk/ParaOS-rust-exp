@@ -30,8 +30,10 @@ pub extern "C" fn _start() -> ! {
             // qemu exit (isa-debug-exit)
             x86::io::outb(0x501, 0);
         }
+        unreachable!()
+    } else {
+        loop {}
     }
-    unreachable!()
 }
 
 #[panic_handler]
