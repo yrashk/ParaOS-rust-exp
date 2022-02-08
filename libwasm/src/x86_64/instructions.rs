@@ -1,9 +1,10 @@
 use crate::x86_64::Error;
 use alloc::collections::{BTreeMap, VecDeque};
 use alloc::vec;
+use alloc::vec::Vec;
 use iced_x86::code_asm::{
-    eax, ebx, ptr, r10, r11, r8, r9, rax, rbx, rcx, rdi, rdx, rsi, AsmRegister64, CodeAssembler,
-    CodeLabel,
+    eax, ebx, ptr, r10, r11, r8, r9, rax, rbp, rbx, rcx, rdi, rdx, rsi, AsmRegister64,
+    CodeAssembler, CodeLabel,
 };
 use wasmparser_nostd::{FuncType, Operator, Type};
 
@@ -13,6 +14,7 @@ pub(crate) fn handle_instruction(
     ils: &mut BTreeMap<u32, CodeLabel>,
     function_typedefs: &mut BTreeMap<u32, FuncType>,
     function_types: &mut BTreeMap<u32, u32>,
+    locals: &Vec<u32>,
     op: Operator,
 ) -> Result<(), Error> {
     match op {
@@ -112,8 +114,20 @@ pub(crate) fn handle_instruction(
         Operator::Drop => todo!(),
         Operator::Select => todo!(),
         Operator::TypedSelect { .. } => todo!(),
-        Operator::LocalGet { .. } => todo!(),
-        Operator::LocalSet { .. } => todo!(),
+        Operator::LocalGet { local_index } => match locals.get(local_index as usize) {
+            Some(offset) => {
+                assembler.mov(rax, ptr(rbp - *offset))?;
+                assembler.push(rax)?;
+            }
+            None => todo!(),
+        },
+        Operator::LocalSet { local_index } => match locals.get(local_index as usize) {
+            Some(offset) => {
+                assembler.pop(rax)?;
+                assembler.mov(ptr(rbp - *offset), rax)?;
+            }
+            None => todo!(),
+        },
         Operator::LocalTee { .. } => todo!(),
         Operator::GlobalGet { .. } => todo!(),
         Operator::GlobalSet { .. } => todo!(),

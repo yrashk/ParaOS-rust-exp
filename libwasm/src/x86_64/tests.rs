@@ -215,3 +215,35 @@ fn external_call() {
 
     assert_eq!(emulator.read_register(testing::RAX).unwrap(), 42);
 }
+
+#[test]
+fn locals_basic() {
+    use testing::Emulator;
+    let foo_src = r#"
+(module
+
+    (func (export "foo") (result i64) (local i64) (local i64)
+      i64.const 10
+      local.set 0
+      i64.const 32
+      local.set 1
+      local.get 0
+      local.get 1
+      i64.add
+    )
+)
+"#;
+    let foo_binary = wat::parse_str(foo_src).expect("binary module");
+    let foo_module = X86_64Compiler::default()
+        .compile(&foo_binary)
+        .expect("compiled module");
+
+    let mut emulator = Emulator::new().expect("emulator");
+    let emu_mod = emulator.add_module(foo_module).expect("module addition");
+
+    emulator
+        .call_function(emu_mod.clone(), "foo")
+        .expect("call");
+
+    assert_eq!(emulator.read_register(testing::RAX).unwrap(), 42);
+}

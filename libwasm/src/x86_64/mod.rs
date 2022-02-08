@@ -7,7 +7,9 @@ use alloc::vec::Vec;
 use byteorder::{ByteOrder, LittleEndian};
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
-use iced_x86::code_asm::{r11, r8, r9, rax, rcx, rdi, rdx, rsi, AsmRegister64, CodeAssembler};
+use iced_x86::code_asm::{
+    r11, r8, r9, rax, rbp, rcx, rdi, rdx, rsi, rsp, AsmRegister64, CodeAssembler,
+};
 use iced_x86::IcedError;
 use wasmparser_nostd::*;
 
@@ -235,6 +237,7 @@ impl Compiler for X86_64Compiler {
                             assembler.set_label(fun_label)?;
                             let rd = cs.get_operators_reader()?;
                             assembler.pop(r11)?;
+                            assembler.mov(rbp, rsp)?;
                             let mut integer_order: VecDeque<AsmRegister64> =
                                 vec![rdi, rsi, rdx, rcx, r8, r9]
                                     .drain(0..function_type.params.len())
@@ -248,6 +251,43 @@ impl Compiler for X86_64Compiler {
                                     _ => todo!(),
                                 }
                             }
+
+                            let (locals_size, locals) = cs.get_locals_reader()?.into_iter().fold(
+                                Ok((0, vec![])),
+                                |sz, local| match (sz, local) {
+                                    (Ok((size, mut vec)), Ok((count, ty))) => {
+                                        let sz = match ty {
+                                            Type::I32 => 4,
+                                            Type::I64 => 8,
+                                            Type::F32 => 4,
+                                            Type::F64 => 8,
+                                            Type::V128 => 16,
+                                            Type::FuncRef => todo!(),
+                                            Type::ExternRef => todo!(),
+                                            Type::ExnRef => todo!(),
+                                            Type::Func => todo!(),
+                                            Type::EmptyBlockType => todo!(),
+                                        };
+                                        let new_size = size + sz * count;
+                                        for i in 0..count {
+                                            vec.push(size + sz * i);
+                                        }
+                                        Ok((new_size, vec))
+                                    }
+                                    (Err(err), _) => Err(err),
+                                    (_, Err(err)) => Err(err),
+                                },
+                            )?;
+
+                            if locals_size > 0 {
+                                // Allocate stack for locals
+                                assembler.add_instruction(iced_x86::Instruction::with2(
+                                    iced_x86::Code::Sub_rm64_imm32,
+                                    iced_x86::Register::RSP,
+                                    locals_size,
+                                )?)?;
+                            }
+
                             for op in rd.into_iter() {
                                 let op = op?;
                                 instructions::handle_instruction(
@@ -256,9 +296,11 @@ impl Compiler for X86_64Compiler {
                                     &mut ils,
                                     &mut function_typedefs,
                                     &mut function_types,
+                                    &locals,
                                     op,
                                 )?;
                             }
+
                             let mut integer_order = VecDeque::from([rax, rdx]);
                             for ret in function_type.returns.iter() {
                                 match ret {
@@ -269,6 +311,16 @@ impl Compiler for X86_64Compiler {
                                     _ => todo!(),
                                 }
                             }
+
+                            if locals_size > 0 {
+                                // Deallocate stack for locals
+                                assembler.add_instruction(iced_x86::Instruction::with2(
+                                    iced_x86::Code::Add_rm64_imm32,
+                                    iced_x86::Register::RSP,
+                                    locals_size,
+                                )?)?;
+                            }
+
                             assembler.push(r11)?;
                             assembler.ret()?;
                             function_body_index += 1;
