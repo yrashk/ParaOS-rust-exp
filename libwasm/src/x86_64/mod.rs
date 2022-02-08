@@ -8,12 +8,34 @@ use byteorder::{ByteOrder, LittleEndian};
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
 use iced_x86::code_asm::{
-    r11, r8, r9, rax, rbp, rcx, rdi, rdx, rsi, rsp, AsmRegister64, CodeAssembler,
+    dword_ptr, ptr, qword_ptr, r11, r8, r9, rax, rbp, rcx, rdi, rdx, rsi, rsp, AsmRegister64,
+    CodeAssembler,
 };
 use iced_x86::IcedError;
 use wasmparser_nostd::*;
 
 mod instructions;
+
+trait EncodingSize {
+    fn encoding_size(&self) -> u32;
+}
+
+impl EncodingSize for Type {
+    fn encoding_size(&self) -> u32 {
+        match self {
+            Type::I32 => 4,
+            Type::I64 => 8,
+            Type::F32 => 4,
+            Type::F64 => 8,
+            Type::V128 => 16,
+            Type::FuncRef => todo!(),
+            Type::ExternRef => todo!(),
+            Type::ExnRef => todo!(),
+            Type::Func => todo!(),
+            Type::EmptyBlockType => todo!(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -236,17 +258,28 @@ impl Compiler for X86_64Compiler {
                             let fun_label = got.get_mut(&function_body_index).unwrap();
                             assembler.set_label(fun_label)?;
                             let rd = cs.get_operators_reader()?;
-                            assembler.pop(r11)?;
+                            assembler.push(rbp)?;
                             assembler.mov(rbp, rsp)?;
                             let mut integer_order: VecDeque<AsmRegister64> =
                                 vec![rdi, rsi, rdx, rcx, r8, r9]
                                     .drain(0..function_type.params.len())
                                     .collect();
+                            let mut extra_args_offset: u32 = 8; // past return address
                             for param in function_type.params.iter() {
                                 match param {
-                                    Type::I64 | Type::I32 => match integer_order.pop_back() {
+                                    Type::I64 => match integer_order.pop_back() {
                                         Some(reg) => assembler.push(reg)?,
-                                        None => {}
+                                        None => {
+                                            assembler.push(qword_ptr(rbp + extra_args_offset))?;
+                                            extra_args_offset += param.encoding_size();
+                                        }
+                                    },
+                                    Type::I32 => match integer_order.pop_back() {
+                                        Some(reg) => assembler.push(reg)?,
+                                        None => {
+                                            assembler.push(dword_ptr(rbp + extra_args_offset))?;
+                                            extra_args_offset += param.encoding_size();
+                                        }
                                     },
                                     _ => todo!(),
                                 }
@@ -256,18 +289,7 @@ impl Compiler for X86_64Compiler {
                                 Ok((0, vec![])),
                                 |sz, local| match (sz, local) {
                                     (Ok((size, mut vec)), Ok((count, ty))) => {
-                                        let sz = match ty {
-                                            Type::I32 => 4,
-                                            Type::I64 => 8,
-                                            Type::F32 => 4,
-                                            Type::F64 => 8,
-                                            Type::V128 => 16,
-                                            Type::FuncRef => todo!(),
-                                            Type::ExternRef => todo!(),
-                                            Type::ExnRef => todo!(),
-                                            Type::Func => todo!(),
-                                            Type::EmptyBlockType => todo!(),
-                                        };
+                                        let sz = ty.encoding_size();
                                         let new_size = size + sz * count;
                                         for i in 0..count {
                                             vec.push(size + sz * i);
@@ -321,7 +343,8 @@ impl Compiler for X86_64Compiler {
                                 )?)?;
                             }
 
-                            assembler.push(r11)?;
+                            assembler.mov(rsp, rbp)?;
+                            assembler.pop(rbp)?;
                             assembler.ret()?;
                             function_body_index += 1;
                         }

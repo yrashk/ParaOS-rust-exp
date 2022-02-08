@@ -69,15 +69,11 @@ pub(crate) fn handle_instruction(
                 None => {
                     if let Some(import_label) = ils.get(&function_index) {
                         assembler.mov(r10, ptr(*import_label))?;
-                        assembler.push(r11)?;
                         assembler.call(r10)?;
-                        assembler.pop(r11)?;
                     }
                 }
                 Some(label) => {
-                    assembler.push(r11)?;
                     assembler.call(*label)?;
-                    assembler.pop(r11)?;
                 }
             }
             let mut integer_order = VecDeque::from([rax, rdx]);
