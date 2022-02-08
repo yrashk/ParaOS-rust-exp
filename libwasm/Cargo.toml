@@ -1,0 +1,19 @@
+[package]
+name = "paraos_libwasm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wasmparser-nostd = { version = "0.82.0", default-features = false }
+byteorder = { version = "1.4.3", default-features = false }
+
+[dev-dependencies]
+unicorn-engine = "2.0.0-rc5.post1"
+wat = "1.0.41"
+
+[dependencies.iced-x86]
+version = "1.15.0"
+default-features = false
+features = ["no_std", "encoder", "decoder", "intel", "code_asm"]

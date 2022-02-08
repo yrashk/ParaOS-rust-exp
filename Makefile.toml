@@ -13,6 +13,7 @@ args = ["fmt", "--", "--emit=files"]
 command = "cargo"
 args = ["build", "--target", "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/.cargo/targets/x86_64-paraos.json"]
 dependencies = ["format", "install-rust-src"]
+cwd = "kernel_bootboot"
 
 [tasks.qemu]
 script_runner = "@shell"
@@ -50,8 +51,9 @@ done
 [tasks.build-tests]
 command = "cargo"
 env = { "RUSTFLAGS" = "-C link-arg=-Tlibkernel/linker.ld" }
-args = ["test", "--target-dir", "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test", "--manifest-path", "libkernel/Cargo.toml", "--no-run", "--target", "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/.cargo/targets/x86_64-paraos.json"]
+args = ["test", "--target-dir", "${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test", "--no-run", "--target", "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}/.cargo/targets/x86_64-paraos.json"]
 dependencies = ["format", "install-rust-src", "clean-test-target"]
+cwd = "libkernel"
 
 [tasks.qemu-test]
 dependencies = ["bootable-tests"]
@@ -67,3 +69,14 @@ end
 
 [tasks.clean-test-target]
 script = "rm -rf ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/test/x86_64-paraos/debug/deps/paraos_libkernel-*"
+
+[tasks.test]
+command = "echo"
+args = ["done"]
+dependencies = ["qemu-test", "libwasm-test"]
+
+[tasks.libwasm-test]
+env = { "RUSTFLAGS" = "" }
+command = "cargo"
+args = ["test"]
+cwd = "libwasm"
